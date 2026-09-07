@@ -1,0 +1,27 @@
+#!/bin/sh
+case "$1" in
+  start)
+    echo "Starting Wi-Fi AP..."
+    hostapd -B /etc/hostapd/hostapd.conf
+    dnsmasq
+    
+    echo "Starting Betaflight OSD MSP receiver..."
+    # Запуск msp-демона на нужном UART (например, UART2 на скорости 115200)
+    /usr/bin/telemetryd -p /dev/ttyS2 -b 115200 &
+    
+    echo "Starting star-c stream for PixelPilot..."
+    # star-c транслирует RTP/UDP поток на IP смартфона (или широковещательно)
+    # Замените параметры разрешения и FPS под ваш сенсор (например, 720p 60fps)
+    /usr/bin/star-c --width 1280 --height 720 --fps 60 --port 5000 &
+    ;;
+  stop)
+    killall star-c
+    killall telemetryd
+    killall hostapd
+    killall dnsmasq
+    ;;
+  *)
+    echo "Usage: $0 {start|stop}"
+    exit 1
+esac
+exit 0
