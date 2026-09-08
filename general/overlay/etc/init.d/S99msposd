@@ -1,20 +1,22 @@
 #!/bin/sh
-MSP_PORT=/dev/ttyS2
-MSP_BAUD=115200
-MSP_FPS=20
-MSP_SIZE=1280x720
 
 case "$1" in
     start)
+        echo "Starting msposd..."
         [ -x /usr/bin/msposd ] || exit 0
-        [ -e "$MSP_PORT" ] || exit 0
-        killall -q msposd 2>/dev/null
-        echo "Starting MSP DisplayPort OSD on $MSP_PORT @ ${MSP_BAUD}..."
-        /usr/bin/msposd             --master "$MSP_PORT"             --baudrate "$MSP_BAUD"             --osd             -r "$MSP_FPS"             --ahi 1             -x 0             -z "$MSP_SIZE"             > /tmp/msposd.log 2>&1 &
+        [ -e /dev/ttyS2 ] || exit 0
+
+        # SSC377D / Infinity6C:
+        # Betaflight MSP DisplayPort on UART2, 115200 baud.
+        # Star-C uses 1280x720 in the default venc configuration.
+        msposd -b 115200 -c 8 -r 20 -m /dev/ttyS2 -z 1280x720 > /dev/null 2>&1 &
         ;;
+
     stop)
+        echo "Stopping msposd..."
         killall -q msposd
         ;;
+
     *)
         echo "Usage: $0 {start|stop}"
         exit 1
