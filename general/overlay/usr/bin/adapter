@@ -1,1 +1,72 @@
 
+#!/bin/sh
+
+ssid=$(fw_printenv -n wlanssid 2>/dev/null)
+pass=$(fw_printenv -n wlanpass 2>/dev/null)
+chan=$(fw_printenv -n wlanchan 2>/dev/null)
+[ -n "$ssid" ] || ssid=OpenIPC
+[ -n "$pass" ] || pass=12345678
+[ -n "$chan" ] || chan=149
+
+case "$chan" in ''|*[!0-9]*) chan=149 ;; esac
+
+if [ "$chan" -le 13 ]; then
+    mode=g
+else
+    mode=a
+fi
+
+set_config() {
+    cat > /tmp/hostapd.conf <<EOC
+ctrl_interface=/var/run/hostapd
+interface=wlan0
+driver=nl80211
+channel=$chan
+hw_mode=$mode
+ieee80211n=1
+ieee80211ac=1
+wmm_enabled=1
+rsn_pairwise=CCMP
+wpa=2
+ssid=$ssid
+wpa_passphrase=$pass
+EOC
+}
+
+case "$1" in
+    setup)
+        driver=
+        for card in $(lsusb 2>/dev/null | awk '{print $6}' | uniq); do
+            case "$card" in
+                0bda:8812|0bda:881a|0b05:17d2|2357:0101|2604:0012) driver=88XXau ;;
+                0bda:a81a) driver=8812eu ;;
+                0bda:f72b|0bda:b733) driver=8733bu ;;
+            esac
+        done
+
+        # If the USB ID is not exposed by this kernel yet, try the driver
+        # selected for the board anyway. If the adapter is physically absent,
+        # ifup will fail harmlessly and Ethernet remains available.
+        [ -n "$driver" ] || driver=88XXau
+        echo "Using wireless driver: $driver"
+        modprobe "$driver" rtw_tx_pwr_by_rate=0 rtw_tx_pwr_lmt_enable=0 2>/dev/null || modprobe "$driver" 2>/dev/null || true
+
+        if [ "$chan" -le 13 ]; then rate=0x8D; else rate=0xB7; fi
+        rate_ctl=$(ls /proc/net/*/wlan0/rate_ctl 2>/dev/null | head -n1)
+        [ -n "$rate_ctl" ] && echo "$rate" > "$rate_ctl"
+        ;;
+    start)
+        [ -e /sys/class/net/wlan0 ] || exit 1
+        set_config
+        mkdir -p /var/run/hostapd
+        hostapd /tmp/hostapd.conf -B
+        udhcpd -S /etc/udhcpd.conf
+        ;;
+    stop)
+        killall -q udhcpd hostapd wpa_supplicant 2>/dev/null || true
+        ;;
+    *)
+        echo "Usage: $0 {setup|start|stop}"
+        exit 1
+        ;;
+esac
