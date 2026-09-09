@@ -1,0 +1,8 @@
+#!/bin/sh
+# Disabled for SSC377D FPV AP build. Star-C + direct Wi-Fi AP are used.
+case "$1" in
+    start) echo "Skipping legacy wifibroadcast datalink" ;;
+    stop) : ;;
+    *) echo "Usage: $0 {start|stop}"; exit 1 ;;
+esac
+exit 0
