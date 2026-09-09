@@ -1,52 +1,50 @@
 #!/bin/sh
-dev=$(fw_printenv -n wlandev)
-mac=$(fw_printenv -n wlanmac)
-net=$(fw_printenv -n netaddr_fallback)
-eth=$(fw_printenv -n ethaddr)
+
+dev=$(fw_printenv -n wlandev 2>/dev/null)
+mac=$(fw_printenv -n wlanmac 2>/dev/null)
+eth=$(fw_printenv -n ethaddr 2>/dev/null)
+
+# This board is used as an FPV camera AP.  Keep Ethernet available as a
+# recovery/configuration link even when Wi-Fi is enabled.
+[ -n "$dev" ] || dev=rtl8812au-generic
 
 set_wireless() {
-	path=/etc/wireless
-	if $path/usb "$dev" || $path/sdio "$dev"; then
-		[ -n "$mac" ] && ip link set dev wlan0 address "$mac"
-		ifup wlan0
-	elif $path/modem "$dev"; then
-		ifup usb0
-		ifup eth1
-	fi
-	[ -e /sys/class/net/eth0 ] && ifconfig eth0 "${net:-192.168.2.10}" hw ether "${eth:-00:00:23:34:45:66}" up
+    path=/etc/wireless
+    if [ -x "$path/usb" ] && $path/usb "$dev"; then
+        [ -n "$mac" ] && ip link set dev wlan0 address "$mac" 2>/dev/null
+        ifup wlan0
+    elif [ -x "$path/sdio" ] && $path/sdio "$dev"; then
+        [ -n "$mac" ] && ip link set dev wlan0 address "$mac" 2>/dev/null
+        ifup wlan0
+    fi
 }
 
 start() {
-	echo "Starting network..."
-	ifup lo
-	if [ -n "$dev" ]; then
-		set_wireless
-	else
-		ifup eth0
-	fi
+    echo "Starting network..."
+    ifup lo
+
+    # Fixed local service/recovery address. This avoids losing Ethernet when
+    # there is no DHCP server on the bench.
+    if [ -e /sys/class/net/eth0 ]; then
+        ip link set eth0 down 2>/dev/null
+        ifconfig eth0 192.168.1.10 netmask 255.255.255.0 up
+        [ -n "$eth" ] && ip link set dev eth0 address "$eth" 2>/dev/null
+    fi
+
+    set_wireless
 }
 
 stop() {
-	echo "Stopping network..."
-	ifdown lo
-	ifdown -f wlan0
-	ifdown -f usb0
-	ifdown -f eth1
-	ifdown -f eth0
+    echo "Stopping network..."
+    ifdown lo 2>/dev/null
+    ifdown -f wlan0 2>/dev/null
+    ifdown -f usb0 2>/dev/null
+    ifdown -f eth1 2>/dev/null
+    ifdown -f eth0 2>/dev/null
 }
 
 case "$1" in
-	start|stop)
-		$1
-		;;
-
-	restart|reload)
-		stop
-		start
-		;;
-
-	*)
-		echo "Usage: $0 {start|stop|restart|reload}"
-		exit 1
-		;;
+    start|stop) $1 ;;
+    restart|reload) stop; start ;;
+    *) echo "Usage: $0 {start|stop|restart|reload}"; exit 1 ;;
 esac
