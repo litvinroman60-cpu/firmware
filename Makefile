@@ -169,7 +169,7 @@ ifeq ($(BR2_OPENIPC_SOC_FAMILY),"hi3516cv6xx")
 # `sf read ${kernaddr} ${kernsize}`, then 5120K(rootfs) at a fixed offset. The
 # combined firmware.bin hides both bounds, so on the 8 MiB part measure the two
 # halves against their slots here, where a PR sees it. 16 MiB is left on the
-# whole-blob figure: its kernel already overruns 2048K on master, and that is a
+# whole-blob figure: its kernel already overruns 2048K on master, and that is
 # u-boot table question, not one a size check here can settle.
 ifeq ($(BR2_OPENIPC_FLASH_SIZE),"8")
 	@$(call CHECK_SIZE,fitImage,2048)
@@ -184,6 +184,8 @@ else
 ifeq ($(BR2_TARGET_ROOTFS_SQUASHFS),y)
 ifeq ($(BR2_OPENIPC_SOC_VENDOR),"rockchip")
 	@$(call PREPARE_REPACK,zboot.img,4096,rootfs.squashfs,8192,nor)
+else ifeq ($(BR2_OPENIPC_SOC_MODEL),"ssc377d")
+	@$(call PREPARE_REPACK,uImage,2048,rootfs.squashfs,10240,nor)
 else ifeq ($(BR2_OPENIPC_FLASH_SIZE),"8")
 	@$(call PREPARE_REPACK,uImage,2048,rootfs.squashfs,5120,nor)
 else
@@ -220,7 +222,7 @@ kconfig-graph:
 	BR2_OUTPUT_DIR=$(TARGET) \
 	IMAGES_DIR=$(TARGET)/images \
 	OPENIPC_SOC_MODEL=$(BR2_OPENIPC_SOC_MODEL) \
-	OPENIPC_VARIANT=$(BR2_OPENIPC_VARIANT) \
+	BR2_OPENIPC_VARIANT=$(BR2_OPENIPC_VARIANT) \
 	BR_VER=$(BR_VER) \
 	PWD=$(PWD) \
 	python3 $(PWD)/general/scripts/kconfig_graph.py
@@ -282,14 +284,14 @@ define PREPARE_REPACK
 	$(if $(1),$(call CHECK_SIZE,$(1),$(2)))
 	$(if $(3),$(call CHECK_SIZE,$(3),$(4)))
 	$(call REPACK_FIRMWARE,$(1),$(3),$(5))
-endef
+endefine
 
 # The headroom line exists because "fits" and "only just fits" read the same in
 # a green build. hi3519v101_lite sat at exactly 5120KB of a 5120KB cap for weeks
 # -- reported, passing, and one 34-line edit from the overflow it hit on
-# 2026-08-18. 32KB is the threshold because what tips these boards is a change
-# to the shared overlay, which is single-digit KB at a time; a board under that
-# is a couple of ordinary commits from red, and a board over it is not.
+# 2026-08-18. 32KB is the threshold because what tips these boards is a change to
+# the shared overlay, which is single-digit KB at a time; a board under that is a
+# couple of ordinary commits from red, and a board over it is not.
 define CHECK_SIZE
 	$(eval FILE_SIZE = $(shell expr $(shell stat -c %s $(TARGET)/images/$(1) || echo 0) / 1024))
 	if test $(FILE_SIZE) -eq 0; then exit 1; fi
