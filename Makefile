@@ -28,7 +28,7 @@ ifeq ($(or $(MAKECMDGOALS), $(BOARD)),)
 LIST := $(shell find ./br-ext-*/configs/*_defconfig | sort | \
 	sed -E "s/br-ext-chip-(.+).configs.(.+)_defconfig/'\2' '\1 \2'/")
 BOARD := $(or $(shell whiptail --title "Available boards" --menu "Select a config:" 20 70 12 \
-	--notags $(LIST) 3>&1 1>&2 3>&2),$(CONFIG))
+	--notags $(LIST) 3>&1 1>&2 2>&3),$(CONFIG))
 endif
 
 ifneq ($(BOARD),)
@@ -77,6 +77,17 @@ prepare:
 		sed -i '/source "linux\/Config.ext.in"/a source "$$BR2_EXTERNAL_GENERAL_PATH/linux/Config.ext.in"' \
 			$(TARGET)/buildroot-$(BR_VER)/linux/Config.in; \
 	fi
+	@# Keep the C dialect pinned at the top of this file out of host C++ builds.
+	@# package/Makefile.in does `HOST_CXXFLAGS += $$(HOST_CFLAGS)`, so -std=gnu17
+	@# reaches every host C++ compile, where it is not a C++ dialect at all: g++
+	@# ignores it and prints "command-line option '-std=gnu17' is valid for
+	@# C/ObjC but not for C++". Compilation still succeeds -- what does not is
+	@# CMake, whose cm_check_cxx_feature discards any feature whose try_compile
+	@# output contains the word "warning" (Source/Checks/cm_cxx_features.cmake).
+	@# host-cmake therefore decides the compiler has no std::unique_ptr and
+	@# aborts its own configure, taking every `make BOARD=...` with it.
+	@# Filtering -std= rather than that one value so a C dialect set from the
+	@# environment does not reintroduce this.
 	@if test -f $(TARGET)/buildroot-$(BR_VER)/package/Makefile.in; then \
 		grep -qF 'filter-out -std=%' \
 			$(TARGET)/buildroot-$(BR_VER)/package/Makefile.in || \
@@ -115,6 +126,8 @@ deps:
 	sudo apt-get install -y automake autotools-dev bc build-essential cpio \
 		curl file fzf git libncurses-dev libtool lzop make rsync unzip wget libssl-dev \
 		python3 python3-pip
+	# kconfiglib is the only non-stdlib dep added by general/scripts/kconfig_graph.py;
+	# install with --break-system-packages on PEP 668 distros (Ubuntu 24.04+, Debian 12+).
 	python3 -m pip install --user --break-system-packages kconfiglib
 
 timer:
@@ -140,49 +153,6 @@ endif
 	@$(BR_MAKE) sdk -j$(shell nproc)
 	@$(call BUNDLE_SDK)
 
-define BUNDLE_SDK
-	OSDRV_DIR=$(PWD)/general/package/$(BR2_OPENIPC_SOC_VENDOR)-osdrv-$(BR2_OPENIPC_SOC_FAMILY)/files; \
-	MPP_HEADERS=$(PWD)/general/package/hisilicon-osdrv-hi3516cv100/files/include; \
-	SDK_TGZ=$$(find $(TARGET)/images -name '*_sdk-buildroot.tar.gz' | head -1); \
-	UCLIBC_COMPAT_SRC=$(PWD)/general/package/uclibc-compat/src/uclibc-compat.c; \
-	UCLIBC_COMPAT_STATIC=$(PWD)/general/package/uclibc-compat/src/uclibc-compat-static.c; \
-	GLIBC_COMPAT_SRC=$(PWD)/general/package/glibc-compat/src/glibc-compat.c; \
-	GLIBC_COMPAT_STATIC=$(PWD)/general/package/glibc-compat/src/glibc-compat-static.c; \
-	SDK_CC=$$(ls $(TARGET)/host/bin/*-gcc 2>/dev/null | head -1); \
-	if [ -d "$$OSDRV_DIR" ] && [ -n "$$SDK_TGZ" ]; then \
-		SDK_TOP=$$(tar tzf $$SDK_TGZ | head -1 | cut -d/ -f1); \
-		rm -rf /tmp/sdk-overlay && mkdir -p /tmp/sdk-overlay/$$SDK_TOP/sdk; \
-		cp -a $$OSDRV_DIR/* /tmp/sdk-overlay/$$SDK_TOP/sdk/; \
-		if [ "$(BR2_OPENIPC_SOC_VENDOR)" = "hisilicon" ] && [ ! -d "$$OSDRV_DIR/include" ] && [ -d "$$MPP_HEADERS" ]; then \
-			mkdir -p /tmp/sdk-overlay/$$SDK_TOP/sdk/include; \
-			cp -a $$MPP_HEADERS/. /tmp/sdk-overlay/$$SDK_TOP/sdk/include/; \
-		fi; \
-		if [ -n "$$SDK_CC" ]; then \
-			SDK_AR=$$(echo $$SDK_CC | sed 's/-gcc$$/-ar/'); \
-			if [ -f "$$UCLIBC_COMPAT_SRC" ]; then \
-				$$SDK_CC -shared -Wall -O2 -fPIC -o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libuclibc-compat.so $$UCLIBC_COMPAT_SRC; \
-			fi; \
-			if [ -f "$$UCLIBC_COMPAT_STATIC" ]; then \
-				$$SDK_CC -Wall -O2 -fPIC -c -o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/uclibc-compat-static.o $$UCLIBC_COMPAT_STATIC; \
-				$$SDK_AR rcs /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libuclibc-compat-static.a /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/uclibc-compat-static.o; \
-				rm -f /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/uclibc-compat-static.o; \
-			fi; \
-			if [ -f "$$GLIBC_COMPAT_SRC" ]; then \
-				$$SDK_CC -shared -Wall -O2 -fPIC -o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libglibc-compat.so $$GLIBC_COMPAT_SRC; \
-			fi; \
-			if [ -f "$$GLIBC_COMPAT_STATIC" ]; then \
-				$$SDK_CC -Wall -O2 -fPIC -c -o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/glibc-compat-static.o $$GLIBC_COMPAT_STATIC; \
-				$$SDK_AR rcs /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libglibc-compat-static.a /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/glibc-compat-static.o; \
-				rm -f /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/glibc-compat-static.o; \
-			fi; \
-		fi; \
-		if [ -f "$$SDK_TGZ" ]; then \
-			tar czf $$SDK_TGZ -C /tmp/sdk-overlay $$SDK_TOP; \
-		fi; \
-		rm -rf /tmp/sdk-overlay; \
-	fi
-endef
-
 repack-final: build
 	@$(MAKE) --no-print-directory BOARD=$(BOARD) TARGET=$(TARGET) repack
 
@@ -195,6 +165,12 @@ else
 endif
 else
 ifeq ($(BR2_OPENIPC_SOC_FAMILY),"hi3516cv6xx")
+# The cv610 u-boot boots from a fixed table: 2048K(kernel) read whole by
+# `sf read ${kernaddr} ${kernsize}`, then 5120K(rootfs) at a fixed offset. The
+# combined firmware.bin hides both bounds, so on the 8 MiB part measure the two
+# halves against their slots here, where a PR sees it. 16 MiB is left on the
+# whole-blob figure: its kernel already overruns 2048K on master, and that is a
+# u-boot table question, not one a size check here can settle.
 ifeq ($(BR2_OPENIPC_FLASH_SIZE),"8")
 	@$(call CHECK_SIZE,fitImage,2048)
 	@$(call CHECK_SIZE,rootfs.squashfs,5120)
@@ -210,8 +186,6 @@ ifeq ($(BR2_OPENIPC_SOC_VENDOR),"rockchip")
 	@$(call PREPARE_REPACK,zboot.img,4096,rootfs.squashfs,8192,nor)
 else ifeq ($(BR2_OPENIPC_FLASH_SIZE),"8")
 	@$(call PREPARE_REPACK,uImage,2048,rootfs.squashfs,5120,nor)
-else ifeq ($(BR2_OPENIPC_SOC_MODEL),"ssc377d")
-	@$(call PREPARE_REPACK,uImage,2048,rootfs.squashfs,10240,nor)
 else
 	@$(call PREPARE_REPACK,uImage,2048,rootfs.squashfs,8192,nor)
 endif
@@ -250,3 +224,97 @@ kconfig-graph:
 	BR_VER=$(BR_VER) \
 	PWD=$(PWD) \
 	python3 $(PWD)/general/scripts/kconfig_graph.py
+
+define BUNDLE_SDK
+	OSDRV_DIR=$(PWD)/general/package/$(BR2_OPENIPC_SOC_VENDOR)-osdrv-$(BR2_OPENIPC_SOC_FAMILY)/files; \
+	MPP_HEADERS=$(PWD)/general/package/hisilicon-osdrv-hi3516cv100/files/include; \
+	SDK_TGZ=$$(find $(TARGET)/images -name '*_sdk-buildroot.tar.gz' | head -1); \
+	UCLIBC_COMPAT_SRC=$(PWD)/general/package/uclibc-compat/src/uclibc-compat.c; \
+	UCLIBC_COMPAT_STATIC=$(PWD)/general/package/uclibc-compat/src/uclibc-compat-static.c; \
+	GLIBC_COMPAT_SRC=$(PWD)/general/package/glibc-compat/src/glibc-compat.c; \
+	GLIBC_COMPAT_STATIC=$(PWD)/general/package/glibc-compat/src/glibc-compat-static.c; \
+	SDK_CC=$$(ls $(TARGET)/host/bin/*-gcc 2>/dev/null | head -1); \
+	if [ -d "$$OSDRV_DIR" ] && [ -n "$$SDK_TGZ" ]; then \
+		SDK_TOP=$$(tar tzf $$SDK_TGZ | head -1 | cut -d/ -f1); \
+		rm -rf /tmp/sdk-overlay && mkdir -p /tmp/sdk-overlay/$$SDK_TOP/sdk; \
+		cp -a $$OSDRV_DIR/* /tmp/sdk-overlay/$$SDK_TOP/sdk/; \
+		if [ "$(BR2_OPENIPC_SOC_VENDOR)" = "hisilicon" ] && [ ! -d "$$OSDRV_DIR/include" ] && [ -d "$$MPP_HEADERS" ]; then \
+			mkdir -p /tmp/sdk-overlay/$$SDK_TOP/sdk/include; \
+			cp -a $$MPP_HEADERS/. /tmp/sdk-overlay/$$SDK_TOP/sdk/include/; \
+		fi; \
+		if [ -n "$$SDK_CC" ]; then \
+			SDK_AR=$$(echo $$SDK_CC | sed 's/-gcc$$/-ar/'); \
+			if [ -f "$$UCLIBC_COMPAT_SRC" ]; then \
+				$$SDK_CC -shared -Wall -O2 -fPIC \
+					-o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libuclibc-compat.so \
+					$$UCLIBC_COMPAT_SRC; \
+			fi; \
+			if [ -f "$$UCLIBC_COMPAT_STATIC" ]; then \
+				$$SDK_CC -Wall -O2 -fPIC -c \
+					-o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/uclibc-compat-static.o \
+					$$UCLIBC_COMPAT_STATIC; \
+				$$SDK_AR rcs /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libuclibc-compat-static.a \
+					/tmp/sdk-overlay/$$SDK_TOP/sdk/lib/uclibc-compat-static.o; \
+				rm -f /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/uclibc-compat-static.o; \
+			fi; \
+			if [ -f "$$GLIBC_COMPAT_SRC" ]; then \
+				$$SDK_CC -shared -Wall -O2 -fPIC \
+					-o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libglibc-compat.so \
+					$$GLIBC_COMPAT_SRC; \
+			fi; \
+			if [ -f "$$GLIBC_COMPAT_STATIC" ]; then \
+				$$SDK_CC -Wall -O2 -fPIC -c \
+					-o /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/glibc-compat-static.o \
+					$$GLIBC_COMPAT_STATIC; \
+				$$SDK_AR rcs /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/libglibc-compat-static.a \
+					/tmp/sdk-overlay/$$SDK_TOP/sdk/lib/glibc-compat-static.o; \
+				rm -f /tmp/sdk-overlay/$$SDK_TOP/sdk/lib/glibc-compat-static.o; \
+			fi; \
+		fi; \
+		gunzip $$SDK_TGZ && \
+		tar rf $${SDK_TGZ%.tar.gz}.tar -C /tmp/sdk-overlay $$SDK_TOP && \
+		gzip $${SDK_TGZ%.tar.gz}.tar; \
+		rm -rf /tmp/sdk-overlay; \
+	fi
+endef
+
+define PREPARE_REPACK
+	$(if $(1),$(call CHECK_SIZE,$(1),$(2)))
+	$(if $(3),$(call CHECK_SIZE,$(3),$(4)))
+	$(call REPACK_FIRMWARE,$(1),$(3),$(5))
+endef
+
+# The headroom line exists because "fits" and "only just fits" read the same in
+# a green build. hi3519v101_lite sat at exactly 5120KB of a 5120KB cap for weeks
+# -- reported, passing, and one 34-line edit from the overflow it hit on
+# 2026-08-18. 32KB is the threshold because what tips these boards is a change
+# to the shared overlay, which is single-digit KB at a time; a board under that
+# is a couple of ordinary commits from red, and a board over it is not.
+define CHECK_SIZE
+	$(eval FILE_SIZE = $(shell expr $(shell stat -c %s $(TARGET)/images/$(1) || echo 0) / 1024))
+	if test $(FILE_SIZE) -eq 0; then exit 1; fi
+	echo - $(1): [$(FILE_SIZE)KB/$(2)KB]
+	if test $(FILE_SIZE) -gt $(2); then \
+		echo -- size exceeded by: $(shell expr $(FILE_SIZE) - $(2))KB; exit 1; fi
+	if test $(shell expr $(2) - $(FILE_SIZE)) -lt 32; then \
+		echo -- headroom warning: $(1) has $(shell expr $(2) - $(FILE_SIZE))KB left of $(2)KB; fi
+endef
+
+define REPACK_FIRMWARE
+	cd $(TARGET)/images && if test -e rootfs.tar; then mv -f rootfs.tar rootfs.$(BR2_OPENIPC_SOC_MODEL).tar; fi
+	$(if $(1),cd $(TARGET)/images && if test -e $(1); then mv -f $(1) $(1).$(BR2_OPENIPC_SOC_MODEL); fi)
+	$(if $(2),cd $(TARGET)/images && if test -e $(2); then mv -f $(2) $(2).$(BR2_OPENIPC_SOC_MODEL); fi)
+	$(if $(1),cd $(TARGET)/images && md5sum $(1).$(BR2_OPENIPC_SOC_MODEL) > $(1).$(BR2_OPENIPC_SOC_MODEL).md5sum)
+	$(if $(2),cd $(TARGET)/images && md5sum $(2).$(BR2_OPENIPC_SOC_MODEL) > $(2).$(BR2_OPENIPC_SOC_MODEL).md5sum)
+	$(if $(1),$(eval KERNEL = $(1).$(BR2_OPENIPC_SOC_MODEL)),$(eval KERNEL =))
+	$(if $(2),$(eval ROOTFS = $(2).$(BR2_OPENIPC_SOC_MODEL)),$(eval ROOTFS =))
+	$(if $(1),$(eval KERNEL_MD5 = $(1).$(BR2_OPENIPC_SOC_MODEL).md5sum),$(eval KERNEL_MD5 =))
+	$(if $(2),$(eval ROOTFS_MD5 = $(2).$(BR2_OPENIPC_SOC_MODEL).md5sum),$(eval ROOTFS_MD5 =))
+	$(eval ARCHIVE = openipc.$(BR2_OPENIPC_SOC_MODEL)-$(3)-$(BR2_OPENIPC_VARIANT).tgz)
+	# Checksums first, so an unpack that runs out of room in /tmp on a 32 MB
+	# camera loses the IMAGE and keeps the .md5sum that convicts it. The other
+	# order loses the checksum and leaves a short image that sysupgrade's
+	# `md5sum -c *.md5sum` then cannot see at all.
+	cd $(TARGET)/images && tar -czf $(ARCHIVE) $(KERNEL_MD5) $(ROOTFS_MD5) $(KERNEL) $(ROOTFS)
+	rm -f $(TARGET)/images/*.md5sum
+endef
