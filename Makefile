@@ -105,7 +105,7 @@ help:
 	- make br-linux - build linux kernel only\n\n"
 
 list:
-	@ls -1 br-ext-chip-*/configs
+	@ls -1 br-ext-*/configs
 
 package:
 	@find $(PWD)/general/package/* -maxdepth 0 -type d -printf "br-%f\n" | grep -v patch
@@ -284,7 +284,7 @@ define PREPARE_REPACK
 	$(if $(1),$(call CHECK_SIZE,$(1),$(2)))
 	$(if $(3),$(call CHECK_SIZE,$(3),$(4)))
 	$(call REPACK_FIRMWARE,$(1),$(3),$(5))
-endefine
+endef
 
 # The headroom line exists because "fits" and "only just fits" read the same in
 # a green build. hi3519v101_lite sat at exactly 5120KB of a 5120KB cap for weeks
