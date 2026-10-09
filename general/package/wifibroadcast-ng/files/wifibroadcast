@@ -49,6 +49,13 @@ load_modules() {
 	fi
 
 	echo_log "Detected driver: $driver"
+
+	# The APFPV network init can load the Wi-Fi driver before wifibroadcast.
+	# Configure the chipset-specific wfb-ng adapter even when wlan0 already exists.
+	if [ -n "$adapter_id" ]; then
+		yaml-cli-multi -i "$wfb_cfg" -s .wireless.wlan_adapter "$adapter_id"
+	fi
+
 	[ -e /sys/class/net/"$wfb_dev" ] && return
 	sleep 1
 
@@ -66,10 +73,6 @@ load_modules() {
 		exit 1
 	fi
 
-	# Set .wireless.wlan_adapter in /etc/wfb.yaml if adapter_id is set
-	if [ -n "$adapter_id" ]; then
-		yaml-cli-multi -i /etc/wfb.yaml -s .wireless.wlan_adapter "$adapter_id"
-	fi
 }
 
 load_mlink() {
