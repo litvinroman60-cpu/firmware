@@ -140,9 +140,28 @@ start_telemetry() {
 	else
 		if [ "$router" = "msposd" ]; then
 			size=$(curl -s localhost/api/v1/config.json | jsonfilter -qe "@.video0.size")
+			port=/dev/"$serial"
+			baud=115200
+			osd_args=""
+			# APFPV supplies this file to select the UART and enable local OSD rendering.
+			if [ -r /etc/apfpv-msposd.conf ]; then
+				. /etc/apfpv-msposd.conf
+				osd_args="-s"
+			fi
+			case "$port" in
+				/dev/ttyS0|/dev/ttyS1|/dev/ttyS2) ;;
+				*) port=/dev/"$serial" ;;
+			esac
+			case "$baud" in
+				9600|19200|38400|57600|115200) ;;
+				*) baud=115200 ;;
+			esac
+			msposd -b "$baud" -c 8 -r "$osd_fps" -m "$port" \
+				-o 127.0.0.1:"$port_tx" -z "$size" $osd_args > /dev/null &
+		else
+			msposd -b 115200 -c 8 -r "$osd_fps" -m /dev/"$serial" \
+				-o 127.0.0.1:"$port_tx" -z "$size" > /dev/null &
 		fi
-		msposd -b 115200 -c 8 -r "$osd_fps" -m /dev/"$serial" \
-			-o 127.0.0.1:"$port_tx" -z "$size" > /dev/null &
 
 		sleep 5
 		echo "&L70&F28&G8CPU:&C TEMP:&T\n&B" >/tmp/MSPOSD.msg
