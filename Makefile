@@ -195,6 +195,28 @@ endif
 ifeq ($(BR2_TARGET_ROOTFS_UBI),y)
 ifneq ($(filter $(BR2_OPENIPC_SOC_VENDOR),"rockchip" "sigmastar"),)
 	@$(call PREPARE_REPACK,,,rootfs.ubi,16384,nand)
+else ifneq ($(wildcard $(PWD)/br-ext-chip-$(subst ",,$(BR2_OPENIPC_SOC_VENDOR))/board/$(subst ",,$(BR2_OPENIPC_SOC_FAMILY))/nand-fit.its),)
+# FIT NAND (board/<family>/nand-fit.its): the kernel lives inside the UBIFS
+# rootfs (/boot, see external.mk), so the package carries what sysupgrade
+# writes -- rootfs.ubifs -- plus rootfs.ubi for a fresh install, and fitImage
+# as the SoC witness sysupgrade reads beside a UBIFS rootfs. No volume bounds
+# either image: sysupgrade sizes the volumes to them. rootfs.ubi is the whole
+# UBI image a fresh install loads into RAM at 0x42000000 and writes from there,
+# so it is held to the 24M the installer stages (openipc.org's 0x1800000),
+# which still clears the relocated U-Boot at the top of a 64M part
+# (hi3516ev200).
+#
+# gk7205v500 is held to 32M instead: its ultimate build carries the NPU's
+# object detectors (xmnpu-models, 22 MB, NAND only), which take rootfs.ubi to
+# about 29.5M. Its parts have 128M of DDR, so the image still clears U-Boot,
+# but a fresh install has to stage at least 0x1E00000 for it -- the 0x1800000
+# above would truncate it. sysupgrade writes rootfs.ubifs and is unaffected.
+ifeq ($(BR2_OPENIPC_SOC_FAMILY),"gk7205v500")
+	@$(call CHECK_SIZE,rootfs.ubi,32768)
+else
+	@$(call CHECK_SIZE,rootfs.ubi,24576)
+endif
+	@$(call REPACK_NAND_FIT)
 else
 	@$(call PREPARE_REPACK,uImage,4096,rootfs.ubi,16384,nand)
 endif
@@ -318,5 +340,20 @@ define REPACK_FIRMWARE
 	# order loses the checksum and leaves a short image that sysupgrade's
 	# `md5sum -c *.md5sum` then cannot see at all.
 	cd $(TARGET)/images && tar -czf $(ARCHIVE) $(KERNEL_MD5) $(ROOTFS_MD5) $(KERNEL) $(ROOTFS)
+	rm -f $(TARGET)/images/*.md5sum
+endef
+
+# The FIT NAND package: three images, so not REPACK_FIRMWARE's two. Copies
+# rather than renames -- rootfs.ubifs stays where buildroot left it, and the
+# NOR package built from the same tree does not share any of these names.
+NAND_FIT_IMAGES = fitImage rootfs.ubifs rootfs.ubi
+define REPACK_NAND_FIT
+	cd $(TARGET)/images && for f in $(NAND_FIT_IMAGES); do \
+		cp -f $$f $$f.$(BR2_OPENIPC_SOC_MODEL) && \
+		md5sum $$f.$(BR2_OPENIPC_SOC_MODEL) > $$f.$(BR2_OPENIPC_SOC_MODEL).md5sum || exit 1; done
+	# Checksums first, as in REPACK_FIRMWARE.
+	cd $(TARGET)/images && tar -czf openipc.$(BR2_OPENIPC_SOC_MODEL)-nand-$(BR2_OPENIPC_VARIANT).tgz \
+		$(foreach f,$(NAND_FIT_IMAGES),$(f).$(BR2_OPENIPC_SOC_MODEL).md5sum) \
+		$(foreach f,$(NAND_FIT_IMAGES),$(f).$(BR2_OPENIPC_SOC_MODEL))
 	rm -f $(TARGET)/images/*.md5sum
 endef
