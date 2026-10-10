@@ -142,11 +142,13 @@ start_telemetry() {
 			size=$(curl -s localhost/api/v1/config.json | jsonfilter -qe "@.video0.size")
 			port=/dev/"$serial"
 			baud=115200
-			osd_args=""
-			# APFPV supplies this file to select the UART and enable local OSD rendering.
+			apfpv_osd=0
+			# APFPV's tested SSC377D UART2 mux and OSD settings.
 			if [ -r /etc/apfpv-msposd.conf ]; then
 				. /etc/apfpv-msposd.conf
-				osd_args="-s"
+				devmem 0x1F2079B8 16 0x1000
+				[ -r /usr/share/fonts/font_btfl_hd.png ] && ln -sf /usr/share/fonts/font_btfl_hd.png /usr/bin/font_hd.png
+				apfpv_osd=1
 			fi
 			case "$port" in
 				/dev/ttyS0|/dev/ttyS1|/dev/ttyS2) ;;
@@ -156,8 +158,13 @@ start_telemetry() {
 				9600|19200|38400|57600|115200) ;;
 				*) baud=115200 ;;
 			esac
-			msposd -b "$baud" -c 8 -r "$osd_fps" -m "$port" \
-				-o 127.0.0.1:"$port_tx" -z "$size" $osd_args > /dev/null &
+			if [ "$apfpv_osd" = "1" ]; then
+				msposd -b "$baud" -r "$osd_fps" -m "$port" \
+					-o 127.0.0.1:"$port_tx" -z 1280x720 -d -a 1 -x 1 > /dev/null &
+			else
+				msposd -b "$baud" -c 8 -r "$osd_fps" -m "$port" \
+					-o 127.0.0.1:"$port_tx" -z "$size" > /dev/null &
+			fi
 		else
 			msposd -b 115200 -c 8 -r "$osd_fps" -m /dev/"$serial" \
 				-o 127.0.0.1:"$port_tx" -z "$size" > /dev/null &
