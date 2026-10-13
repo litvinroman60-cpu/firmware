@@ -140,6 +140,7 @@ start_telemetry() {
 	else
 		if [ "$router" = "msposd" ]; then
 			size=$(curl -s localhost/api/v1/config.json | jsonfilter -qe "@.video0.size")
+			[ -n "$size" ] || size=1920x1080
 			port=/dev/"$serial"
 			baud=115200
 			apfpv_osd=0
