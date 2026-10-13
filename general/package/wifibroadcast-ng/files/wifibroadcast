@@ -159,8 +159,19 @@ start_telemetry() {
 				*) baud=115200 ;;
 			esac
 			if [ "$apfpv_osd" = "1" ]; then
+				# Match the OSD canvas and character matrix to the active video size.
+				# Leave AHI disabled; it draws a separate graphical layer.
+				case "$size" in
+					1280x720)
+						matrix=1
+						[ -r /usr/share/fonts/font_btfl_hd.png ] && ln -sf /usr/share/fonts/font_btfl_hd.png /usr/bin/font_hd.png
+						;;
+					*)
+						matrix=0
+						;;
+				esac
 				msposd -b "$baud" -r "$osd_fps" -m "$port" \
-					-o 127.0.0.1:"$port_tx" -z 1280x720 -d -a 1 -x 1 > /dev/null &
+					-o 127.0.0.1:"$port_tx" -z "$size" -d -x "$matrix" > /dev/null &
 			else
 				msposd -b "$baud" -c 8 -r "$osd_fps" -m "$port" \
 					-o 127.0.0.1:"$port_tx" -z "$size" > /dev/null &
