@@ -65,7 +65,7 @@ load_modules() {
 	fi
 
 	
-	modprobe "$driver" "$opt1" "$opt2" MaxTxBufLen=32
+	modprobe "$driver" "$opt1" "$opt2"
 	sleep 3
 
 	if ! ifconfig "$wfb_dev" up; then
