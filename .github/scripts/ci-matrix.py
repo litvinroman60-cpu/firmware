@@ -315,7 +315,7 @@ NOT_BUILT = {
     "uqmi-openipc", "usb-dual-role", "vdec-openipc", "venc-openipc",
     "w1-ds18b20", "waybeam", "wpa_supplicant-openipc",
     "webface",
-    "webrtc-audio-processing-openipc", "wq9001", ,
+    "webrtc-audio-processing-openipc", "wq9001",
 }
 
 # Directories under general/package/ that hold no Buildroot package: all-patches
