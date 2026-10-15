@@ -171,7 +171,7 @@ start_telemetry() {
 		fi
 
 		sleep 5
-		echo "&L70&F28&G8CPU:&C TEMP:&T\n&B" >/tmp/MSPOSD.msg
+		echo "&L04&F28&G9CPU:&C TEMP:&T\n&B" >/tmp/MSPOSD.msg
 	fi
 }
 
