@@ -148,7 +148,8 @@ start_telemetry() {
 			if [ -r /etc/apfpv-msposd.conf ]; then
 				. /etc/apfpv-msposd.conf
 				devmem 0x1F2079B8 16 0x1000
-				[ -r /usr/share/fonts/font_btfl_hd.png ] && ln -sf /usr/share/fonts/font_btfl_hd.png /usr/bin/font_hd.png
+				# Let msposd select font_btfl/font_btfl_hd from /usr/share/fonts by FC type.
+				# Do not override its legacy /usr/bin font aliases: that can mismatch the OSD glyph map.
 				apfpv_osd=1
 			fi
 			case "$port" in
@@ -165,7 +166,6 @@ start_telemetry() {
 				case "$size" in
 					1280x720)
 						matrix=1
-						[ -r /usr/share/fonts/font_btfl_hd.png ] && ln -sf /usr/share/fonts/font_btfl_hd.png /usr/bin/font_hd.png
 						;;
 					*)
 						matrix=0
@@ -243,11 +243,9 @@ video_settings() {
 	wifibroadcast cli -s .wireless.link_control alink
 	sed -i '/alink_drone &/d' /etc/rc.local && sed -i -e '$i alink_drone &' /etc/rc.local
 
-	if [ "$sensor" = "imx335" ]; then
-		cli -s .video0.size 1920x1440
-	else
-		cli -s .video0.size 1920x1080
-	fi
+	# Keep the SSC377D FPV profile at the intended 720p canvas so msposd
+	# uses the matching 50x18 matrix and Betaflight HD font.
+	cli -s .video0.size 1280x720
 }
 
 start() {
