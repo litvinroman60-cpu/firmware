@@ -41,6 +41,9 @@ BR2_TARGET_ROOTFS_SQUASHFS=y
 BR2_TARGET_ROOTFS_SQUASHFS4_XZ=y
 
 # OpenIPC
+# Classic FPV profile: 16 MiB NOR, UART2 telemetry (ttyS2), and 1080p video.
+# wifibroadcast-ng selects MSPOSD and its runtime dependencies; its source is
+# pinned in general/package/msposd/msposd.mk to the tested SSC377D OSD fix.
 BR2_OPENIPC_SOC_VENDOR="sigmastar"
 BR2_OPENIPC_SOC_MODEL="ssc377d"
 BR2_OPENIPC_SOC_FAMILY="infinity6c"
