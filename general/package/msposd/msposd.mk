@@ -6,7 +6,7 @@
 
 # Use the project-maintained fork for SSC377D FPV fixes and pin the source for reproducible builds.
 MSPOSD_SITE = $(call github,litvinroman60-cpu,msposd,$(MSPOSD_VERSION))
-MSPOSD_VERSION = 965af2ed7a68a36ac220979427e6e7f61982fd21
+MSPOSD_VERSION = ddf6b7de699b383809f16cbbe4e858fc4647cc14
 MSPOSD_DEPENDENCIES = libevent-openipc
 
 ifeq ($(OPENIPC_SOC_FAMILY),gk7205v200)
@@ -42,7 +42,7 @@ define MSPOSD_INSTALL_TARGET_CMDS
 	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/fonts/font_btfl_hd.png
 	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/fonts/font_ardu.png
 	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/fonts/font_ardu_hd.png
-	$(INSTALL) -m 644 -t $(TARGET_DIR)/etc $(@D)/vtxmenu.ini
+	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/vtxmenu.ini
 endef
 
 define MSPOSD_INSTALL_LIBRARIES
