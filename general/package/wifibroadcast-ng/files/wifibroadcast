@@ -126,7 +126,11 @@ start_tunnel() {
 
 start_telemetry() {
 	chipset=$(ipcinfo -c)
+	family=$(ipcinfo -f)
 	[ "$chipset" = "ssc33x" ] && devmem 0x1F207890 16 0x8
+	# SSC377D / Infinity6C FPV telemetry uses UART2 (ttyS2). Select its
+	# pin mux before starting msposd; APFPV uses the same register setting.
+	[ "$family" = "infinity6c" ] && [ "$serial" = "ttyS2" ] && devmem 0x1F2079B8 16 0x1000
 
 	port_rx=14550
 	port_tx=14551
@@ -243,11 +247,8 @@ video_settings() {
 	wifibroadcast cli -s .wireless.link_control alink
 	sed -i '/alink_drone &/d' /etc/rc.local && sed -i -e '$i alink_drone &' /etc/rc.local
 
-	if [ "$sensor" = "imx335" ]; then
-		cli -s .video0.size 1920x1440
-	else
-		cli -s .video0.size 1920x1080
-	fi
+	# The classic SSC377D FPV profile uses a consistent 1080p video canvas.
+	cli -s .video0.size 1920x1080
 }
 
 start() {
