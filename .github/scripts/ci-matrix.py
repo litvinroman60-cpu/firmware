@@ -52,7 +52,7 @@ ALL_BOARDS = [
     # Sigmastar [I6C]
     "ssc377_lite", "ssc377d_lite", "ssc377de_lite", "ssc377qe_lite",
     # SSC377D FPV variants maintained in this project fork.
-    "ssc377d_apfpv", "ssc377d_fpv", "ssc377d_fpv_pixelpilot",
+    "ssc377d_apfpv", "ssc377d_fpv",
     "ssc378de_lite", "ssc378qe_lite",
     # Sigmastar [I6E]
     "ssc30kd_lite", "ssc30kq_lite", "ssc338q_lite",
@@ -236,7 +236,6 @@ SMOKE_BOARDS = [
     "gk7205v200_lite",        # Goke
     "ssc377d_apfpv",         # SSC377D APFPV variant
     "ssc377d_fpv",           # SSC377D FPV variant
-    "ssc377d_fpv_pixelpilot",# SSC377D PixelPilot FPV variant
     "ssc338q_lite",           # SigmaStar
     "t31_lite",               # Ingenic, the only mips
     "rv1126_lite",            # Rockchip, and UBI with no squashfs
