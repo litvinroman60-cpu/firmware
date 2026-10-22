@@ -6,7 +6,7 @@
 
 # Control build: test the last pre-fix msposd revision to isolate the SSC377D OSD regression.
 MSPOSD_SITE = $(call github,litvinroman60-cpu,msposd,$(MSPOSD_VERSION))
-MSPOSD_VERSION = ad0175ce01c4e09b3eb4223fd683735f9df22715
+MSPOSD_VERSION = ddf6b7de699b383809f16cbbe4e858fc4647cc14
 MSPOSD_DEPENDENCIES = libevent-openipc
 
 ifeq ($(OPENIPC_SOC_FAMILY),gk7205v200)
