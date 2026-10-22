@@ -42,7 +42,7 @@ define MSPOSD_INSTALL_TARGET_CMDS
 	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/fonts/font_btfl_hd.png
 	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/fonts/font_ardu.png
 	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/fonts/font_ardu_hd.png
-	$(INSTALL) -m 644 -t $(TARGET_DIR)/usr/share/fonts $(@D)/vtxmenu.ini
+	$(INSTALL) -m 644 -t $(TARGET_DIR)/etc $(@D)/vtxmenu.ini
 endef
 
 define MSPOSD_INSTALL_LIBRARIES
